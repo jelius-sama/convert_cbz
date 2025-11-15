@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -58,7 +59,7 @@ func main() {
 
 	// Handle version flag
 	if *showVersion {
-		fmt.Println("CBZ Converter v1.1.0")
+		fmt.Println("CBZ Converter v1.1.1")
 		fmt.Println("Converts folders containing images to CBZ comic book archives")
 		return
 	}
@@ -387,10 +388,8 @@ func shouldExcludeFile(fileName string) bool {
 		"folder.jpg", "albumartsmall.jpg", ".picasa.ini",
 	}
 
-	for _, sysFile := range systemFiles {
-		if fileName == sysFile {
-			return true
-		}
+	if exits := slices.Contains(systemFiles, fileName); exits == true {
+		return true
 	}
 
 	// VCS directories/files
