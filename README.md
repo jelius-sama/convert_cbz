@@ -7,6 +7,7 @@ A high-performance, concurrent tool for converting folders containing images int
 ## Features
 
 - **High Performance**: Multi-threaded processing with configurable concurrency
+- **Flexible Input**: Support for both recursive directory scanning and direct folder conversion
 - **Smart Detection**: MIME-type based image detection (supports JPEG, PNG, GIF, WebP, HEIF, AVIF, and more)
 - **Cross-Platform**: Runs on Linux, macOS, Windows, and various Unix systems
 - **Professional Logging**: Color-coded output with detailed progress tracking
@@ -40,43 +41,105 @@ go build -o convert_cbz main.go
 
 ### Basic Syntax
 ```bash
-convert_cbz -input <input_folder> -output <output_folder> [options]
+convert_cbz -input <input_path> [-input <input_path>...] -output <output_folder> [options]
 ```
 
 ### Options
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-input` | Input directory containing folders to convert | *required* |
+| `-input` | Input directory (can be specified multiple times) | *required* |
 | `-output` | Output directory for CBZ files | *required* |
+| `-recursive` | Process subdirectories recursively | `false` |
 | `-threads` | Number of concurrent processing threads | `4` |
 | `-dumb` | Archive all files without filtering | `false` (smart mode) |
 | `-help` | Show usage information | - |
 | `-version` | Show version information | - |
 
-### Examples
-
-Smart mode (default) - filters intelligently:
-```bash
-convert_cbz -input ./manga -output ./cbz
-```
-
-Dumb mode - archives everything:
-```bash
-convert_cbz -input ./raw_folders -output ./archives -dumb
-```
-
-High-performance processing:
-```bash
-convert_cbz -input /home/user/comics -output /home/user/cbz -threads 8
-```
-
-Show help:
-```bash
-convert_cbz -help
-```
-
 ## Processing Modes
+
+### Recursive Mode
+Scans input directories and converts each subdirectory into a separate CBZ file. This is the original behavior for batch processing multiple manga/comic folders.
+
+**Example structure:**
+```
+./mangas/
+├── Manga Title 1/
+├── Manga Title 2/
+└── Manga Title 3/
+```
+
+**Usage:**
+```bash
+convert_cbz -recursive -input ./mangas -output ./cbz
+```
+
+**Result:** Creates `Manga Title 1.cbz`, `Manga Title 2.cbz`, `Manga Title 3.cbz`
+
+### Direct Mode (Default)
+Converts specified directories directly into CBZ files without recursion. Perfect for converting specific folders or when you want precise control.
+
+**Usage:**
+```bash
+# Single folder
+convert_cbz -input "./mangas/Manga Title 1" -output ./cbz
+
+# Multiple folders
+convert_cbz -input "./mangas/Manga Title 1" -input "./mangas/Manga Title 2" -output ./cbz
+```
+
+**Result:** Creates CBZ files only for the specified directories
+
+### Multiple Input Directories
+Both modes support multiple input paths:
+
+```bash
+# Recursive mode with multiple sources
+convert_cbz -recursive -input ./mangas -input ./fav-mangas -output ./cbz
+
+# Direct mode with multiple sources
+convert_cbz -input ./folder1 -input ./folder2 -input ./folder3 -output ./cbz
+```
+
+## Examples
+
+### Recursive Processing (Batch Conversion)
+```bash
+# Process all subdirectories in manga folder
+convert_cbz -recursive -input ./manga -output ./cbz
+
+# Process multiple source directories
+convert_cbz -recursive -input ./manga -input ./comics -output ./cbz
+
+# With custom thread count
+convert_cbz -recursive -threads 8 -input ./manga -output ./cbz
+```
+
+### Direct Processing (Specific Folders)
+```bash
+# Convert a single specific folder
+convert_cbz -input "./manga/One Piece Chapter 1" -output ./cbz
+
+# Convert multiple specific folders
+convert_cbz -input "./manga/Chapter 1" -input "./manga/Chapter 2" -output ./cbz
+
+# Using dumb mode for complete archiving
+convert_cbz -dumb -input "./raw/chapter 1" -output ./archives
+```
+
+### Advanced Usage
+```bash
+# High-performance recursive processing
+convert_cbz -recursive -threads 16 -input ./large_collection -output ./cbz
+
+# Archive everything without filtering
+convert_cbz -recursive -dumb -input ./raw_scans -output ./archives
+
+# Process specific chapters with smart filtering
+convert_cbz -input "./Ch1" -input "./Ch2" -input "./Ch3" -output ./out
+```
+
+## Content Filtering Modes
 
 ### Smart Mode (Default)
 **Includes:**
@@ -101,7 +164,9 @@ convert_cbz -help
 
 ## How It Works
 
-1. **Directory Scanning**: Recursively scans each folder in the input directory
+1. **Input Processing**: 
+   - **Recursive Mode**: Scans input directories for subdirectories
+   - **Direct Mode**: Uses specified directories directly
 2. **Content Analysis**: 
    - **Smart Mode**: Uses MIME type analysis and filename patterns to identify useful content
    - **Dumb Mode**: Includes all files without any filtering
@@ -124,6 +189,7 @@ convert_cbz -help
 
 ## Output Structure
 
+### Recursive Mode
 ```
 input/
 ├── Manga Title 1/
@@ -139,6 +205,21 @@ output/
 └── Manga Title 2.cbz
 ```
 
+### Direct Mode
+```
+input/
+└── mangas/
+    ├── Chapter 1/
+    │   └── pages...
+    └── Chapter 2/
+        └── pages...
+
+Command: convert_cbz -input "./mangas/Chapter 1" -output ./cbz
+
+output/
+└── Chapter 1.cbz
+```
+
 ## Logging and Feedback
 
 The tool provides professional logging with color-coded output:
@@ -151,13 +232,14 @@ The tool provides professional logging with color-coded output:
 ### Sample Output
 ```
 [INFO] Starting CBZ conversion with 4 threads
-[INFO] Input:  ./manga
 [INFO] Output: ./cbz
 [INFO] Mode: SMART - filtering files intelligently
+[INFO] Mode: RECURSIVE - processing subdirectories
+[INFO] Input: ./manga (199 subdirectories)
 [INFO] Found 199 folders to process
 [WORKER 1] Processing: [Author] Title Chapter 1
 [OK] [WORKER 1] Created: Title Chapter 1.cbz
-[WARN] [WORKER 2] Found 2 files excluded by smart filtering
+[WARN] [WORKER 2] Found 2 non-image files (excluded from CBZ)
 ...
 [INFO] Conversion completed
 [INFO] Total folders:     199
@@ -178,11 +260,12 @@ The tool provides professional logging with color-coded output:
 
 The tool handles various error conditions gracefully:
 
-- **Missing directories**: Clear error messages with exit codes
+- **Missing directories**: Clear error messages with warnings for invalid paths
 - **Permission issues**: Skips inaccessible files with warnings
 - **Corrupted files**: Uses fail-safe approach to include ambiguous files
 - **Existing files**: Skips existing CBZ files to prevent overwriting
 - **Individual failures**: Continues processing other folders if one fails
+- **Duplicate paths**: Detects and skips duplicate input directories
 
 ## Technical Details
 
@@ -228,6 +311,16 @@ This project is released under the MIT License.
 - Smart mode intentionally excludes system files and VCS data
 - Check the excluded files count in the final statistics
 
+**Q: Difference between recursive and direct mode?**
+- Recursive: Scans for subdirectories and converts each one
+- Direct: Converts only the specified directories
+- Use recursive for batch processing, direct for specific folders
+
+**Q: How to process specific chapters?**
+- Use direct mode without `-recursive` flag
+- Specify each folder with separate `-input` flags
+- Example: `convert_cbz -input "./Ch1" -input "./Ch2" -output ./cbz`
+
 **Q: CBZ files not opening in comic readers**
 - Ensure input folders contain valid image files
 - Some readers may need specific file ordering
@@ -240,25 +333,12 @@ This project is released under the MIT License.
 
 **Q: High memory usage**
 - Reduce thread count with `-threads` flag
-- Process smaller batches of folders Check that folders contain actual image files
-- Verify file permissions are readable
-
-**Q: High memory usage**
-- Reduce thread count with `-threads` flag
 - Process smaller batches of folders
-
-**Q: CBZ files not opening in comic readers**
-- Ensure input folders contain valid image files
-- Some readers may need specific file ordering
-
-**Q: Permission denied errors**
-- Check read permissions on input directory
-- Check write permissions on output directory
-- Run with appropriate user privileges
 
 ### Performance Tips
 
 - Use SSD storage for both input and output directories
 - Set thread count to match your CPU cores (or slightly higher)
-- Process folders in smaller batches for very large collections
+- Use recursive mode for batch processing large collections
+- Use direct mode when you need precise control over what gets converted
 - Close other resource-intensive applications during conversion

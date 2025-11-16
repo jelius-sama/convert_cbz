@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"flag"
 	"fmt"
+	"github.com/jelius-sama/logger"
 	"io"
 	"net/http"
 	"os"
@@ -16,17 +17,7 @@ import (
 	"time"
 )
 
-const VERSION = "v1.1.1"
-
-// ANSI color codes for professional logging
-const (
-	ColorReset  = "\033[0m"
-	ColorRed    = "\033[31m"
-	ColorGreen  = "\033[32m"
-	ColorYellow = "\033[33m"
-	ColorBlue   = "\033[34m"
-	ColorCyan   = "\033[36m"
-)
+const VERSION = "v2.0.0"
 
 // ConversionStats tracks overall conversion statistics
 type ConversionStats struct {
@@ -46,17 +37,31 @@ type WorkItem struct {
 	DumbMode   bool
 }
 
+// StringSliceFlag allows multiple string flags
+type StringSliceFlag []string
+
+func (s *StringSliceFlag) String() string {
+	return strings.Join(*s, ", ")
+}
+
+func (s *StringSliceFlag) Set(value string) error {
+	*s = append(*s, value)
+	return nil
+}
+
 func main() {
 	// Command line argument parsing
+	var inputPaths StringSliceFlag
 	var (
-		inputDir    = flag.String("input", "", "Input directory containing folders to convert (required)")
 		outputDir   = flag.String("output", "", "Output directory for CBZ files (required)")
 		threads     = flag.Int("threads", 4, "Number of concurrent threads")
 		dumbMode    = flag.Bool("dumb", false, "Archive all files without filtering (default: smart filtering)")
+		recursive   = flag.Bool("recursive", false, "Process subdirectories recursively (default: direct conversion)")
 		showHelp    = flag.Bool("help", false, "Show usage information")
 		showVersion = flag.Bool("version", false, "Show version information")
 	)
 
+	flag.Var(&inputPaths, "input", "Input directory/directories (can be specified multiple times)")
 	flag.Parse()
 
 	// Handle version flag
@@ -67,7 +72,7 @@ func main() {
 	}
 
 	// Handle help flag or missing required arguments
-	if *showHelp || *inputDir == "" || *outputDir == "" {
+	if *showHelp || len(inputPaths) == 0 || *outputDir == "" {
 		showUsage()
 		return
 	}
@@ -78,58 +83,54 @@ func main() {
 	} else if *threads > runtime.NumCPU()*2 {
 		// Limit to 2x CPU cores to prevent resource exhaustion
 		*threads = runtime.NumCPU() * 2
-		logInfo(fmt.Sprintf("Thread count limited to %d (2x CPU cores)", *threads))
-	}
-
-	// Validate input directory exists
-	if _, err := os.Stat(*inputDir); os.IsNotExist(err) {
-		logError(fmt.Sprintf("Input directory does not exist: %s", *inputDir))
-		os.Exit(1)
+		logger.Info(fmt.Sprintf("Thread count limited to %d (2x CPU cores)", *threads))
 	}
 
 	// Create output directory if it doesn't exist
 	if err := os.MkdirAll(*outputDir, 0755); err != nil {
-		logError(fmt.Sprintf("Failed to create output directory: %v", err))
-		os.Exit(1)
+		logger.Fatal(fmt.Sprintf("Failed to create output directory: %v", err))
 	}
 
-	logInfo(fmt.Sprintf("Starting CBZ conversion with %d threads", *threads))
-	logInfo(fmt.Sprintf("Input:  %s", *inputDir))
-	logInfo(fmt.Sprintf("Output: %s", *outputDir))
+	logger.Info(fmt.Sprintf("Starting CBZ conversion with %d threads", *threads))
+	logger.Info(fmt.Sprintf("Output: %s", *outputDir))
 
 	if *dumbMode {
-		logInfo("Mode: DUMB - archiving all files without filtering")
+		logger.Info("Mode: DUMB - archiving all files without filtering")
 	} else {
-		logInfo("Mode: SMART - filtering files intelligently")
+		logger.Info("Mode: SMART - filtering files intelligently")
 	}
 
-	// Get list of folders to process
-	folders, err := getFolders(*inputDir)
+	if *recursive {
+		logger.Info("Mode: RECURSIVE - processing subdirectories")
+	} else {
+		logger.Info("Mode: DIRECT - converting specified directories only")
+	}
+
+	// Collect all work items based on input paths and mode
+	var workItems []WorkItem
+	var err error
+
+	if *recursive {
+		// Recursive mode: scan each input path for subdirectories
+		workItems, err = collectRecursiveWorkItems(inputPaths, *outputDir, *dumbMode)
+	} else {
+		// Direct mode: convert specified directories directly
+		workItems, err = collectDirectWorkItems(inputPaths, *outputDir, *dumbMode)
+	}
+
 	if err != nil {
-		logError(fmt.Sprintf("Failed to read input directory: %v", err))
-		os.Exit(1)
+		logger.Fatal(fmt.Sprintf("Failed to collect work items: %v", err))
 	}
 
-	if len(folders) == 0 {
-		logWarning("No folders found in input directory")
+	if len(workItems) == 0 {
+		logger.Warning("No folders found to process")
 		return
 	}
 
-	logInfo(fmt.Sprintf("Found %d folders to process", len(folders)))
-
-	// Create work items
-	workItems := make([]WorkItem, len(folders))
-	for i, folder := range folders {
-		workItems[i] = WorkItem{
-			FolderName: folder,
-			SourcePath: filepath.Join(*inputDir, folder),
-			OutputPath: filepath.Join(*outputDir, folder+".cbz"),
-			DumbMode:   *dumbMode,
-		}
-	}
+	logger.Info(fmt.Sprintf("Found %d folders to process", len(workItems)))
 
 	// Process folders concurrently
-	stats := &ConversionStats{Total: len(folders)}
+	stats := &ConversionStats{Total: len(workItems)}
 	processConcurrently(workItems, *threads, stats)
 
 	// Print final statistics
@@ -140,31 +141,159 @@ func showUsage() {
 	fmt.Println("CBZ Converter - Convert image folders to CBZ comic book archives")
 	fmt.Println()
 	fmt.Println("USAGE:")
-	fmt.Printf("  %s -input <folder> -output <folder> [options]\n", os.Args[0])
+	fmt.Printf("  %s -input <dir> [-input <dir>...] -output <folder> [options]\n", os.Args[0])
 	fmt.Println()
 	fmt.Println("REQUIRED:")
-	fmt.Println("  -input   string    Input directory containing folders to convert")
+	fmt.Println("  -input   string    Input directory (can be specified multiple times)")
 	fmt.Println("  -output  string    Output directory for CBZ files")
 	fmt.Println()
 	fmt.Println("OPTIONS:")
-	fmt.Println("  -threads int       Number of concurrent threads (default: 4)")
-	fmt.Println("  -dumb             Archive all files without filtering (default: false)")
-	fmt.Println("  -help             Show this help message")
-	fmt.Println("  -version          Show version information")
+	fmt.Println("  -recursive        Process subdirectories recursively (default: false)")
+	fmt.Println("  -threads int      Number of concurrent threads (default: 4)")
+	fmt.Println("  -dumb            Archive all files without filtering (default: false)")
+	fmt.Println("  -help            Show this help message")
+	fmt.Println("  -version         Show version information")
 	fmt.Println()
 	fmt.Println("EXAMPLES:")
-	fmt.Printf("  %s -input ./manga -output ./cbz\n", os.Args[0])
-	fmt.Printf("  %s -input /home/user/comics -output /home/user/cbz -threads 8\n", os.Args[0])
-	fmt.Printf("  %s -input ./raw -output ./archives -dumb\n", os.Args[0])
+	fmt.Println("  1. Recursive Mode:")
+	fmt.Println("     Process every subdirectory inside root folders:")
+	fmt.Printf("       %s -recursive -input ./mangas -output ./cbz\n", os.Args[0])
+	fmt.Printf("       %s -recursive -input ./mangas -input ./fav-mangas -output ./cbz\n", os.Args[0])
+	fmt.Println()
+	fmt.Println("  2. Direct Mode (single specific folder):")
+	fmt.Println("     Convert only the specified directory:")
+	fmt.Printf("       %s -input \"./mangas/some manga\" -output ./cbz\n", os.Args[0])
+	fmt.Println()
+	fmt.Println("  3. Direct Mode (multiple specific folders):")
+	fmt.Println("     Convert each specified directory (no recursion):")
+	fmt.Printf("       %s -input \"./mangas/some manga\" -input \"./mangas/some manga part 2\" -output ./cbz\n", os.Args[0])
+	fmt.Println()
+	fmt.Println("  4. With additional options:")
+	fmt.Printf("       %s -recursive -threads 8 -input ./mangas -output ./cbz\n", os.Args[0])
+	fmt.Printf("       %s -dumb -input \"./raw/chapter 1\" -output ./archives\n", os.Args[0])
 	fmt.Println()
 	fmt.Println("MODES:")
-	fmt.Println("  SMART (default): Intelligently filters files to include:")
-	fmt.Println("    • Image files (JPEG, PNG, GIF, WebP, HEIF, etc.)")
-	fmt.Println("    • Text files (TXT, MD, NFO - metadata)")
-	fmt.Println("    • Video files (MP4, AVI, MKV - supplementary content)")
-	fmt.Println("    • Excludes: system files (.DS_Store, Thumbs.db), VCS (.git, .svn)")
+	fmt.Println("  RECURSIVE (-recursive):")
+	fmt.Println("    Scans input directories and converts each subdirectory into a CBZ")
+	fmt.Println("    Example: ./mangas/ contains [manga1/, manga2/, manga3/]")
+	fmt.Println("             → Creates manga1.cbz, manga2.cbz, manga3.cbz")
 	fmt.Println()
-	fmt.Println("  DUMB (-dumb): Archives everything without any filtering")
+	fmt.Println("  DIRECT (default):")
+	fmt.Println("    Converts the specified directories directly into CBZ files")
+	fmt.Println("    Example: -input \"./mangas/manga1\"")
+	fmt.Println("             → Creates manga1.cbz (only this folder)")
+	fmt.Println()
+	fmt.Println("  SMART (default):")
+	fmt.Println("    Intelligently filters files to include:")
+	fmt.Println("      • Image files (JPEG, PNG, GIF, WebP, HEIF, etc.)")
+	fmt.Println("      • Text files (TXT, MD, NFO - metadata)")
+	fmt.Println("      • Video files (MP4, AVI, MKV - supplementary content)")
+	fmt.Println("      • Excludes: system files (.DS_Store, Thumbs.db), VCS (.git, .svn)")
+	fmt.Println()
+	fmt.Println("  DUMB (-dumb):")
+	fmt.Println("    Archives everything without any filtering")
+}
+
+// collectRecursiveWorkItems scans input directories for subdirectories (original behavior)
+func collectRecursiveWorkItems(inputPaths []string, outputDir string, dumbMode bool) ([]WorkItem, error) {
+	var workItems []WorkItem
+	seenPaths := make(map[string]bool) // Prevent duplicates
+
+	for _, inputPath := range inputPaths {
+		// Validate input directory exists
+		if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+			logger.Warning(fmt.Sprintf("Input directory does not exist, skipping: %s", inputPath))
+			continue
+		}
+
+		// Get subdirectories
+		folders, err := getFolders(inputPath)
+		if err != nil {
+			logger.Warning(fmt.Sprintf("Failed to read directory %s: %v", inputPath, err))
+			continue
+		}
+
+		logger.Info(fmt.Sprintf("Input: %s (%d subdirectories)", inputPath, len(folders)))
+
+		// Create work items for each subdirectory
+		for _, folder := range folders {
+			sourcePath := filepath.Join(inputPath, folder)
+
+			// Get absolute path to avoid duplicates
+			absPath, err := filepath.Abs(sourcePath)
+			if err != nil {
+				logger.Warning(fmt.Sprintf("Failed to resolve path %s: %v", sourcePath, err))
+				continue
+			}
+
+			// Skip if we've already seen this path
+			if seenPaths[absPath] {
+				continue
+			}
+			seenPaths[absPath] = true
+
+			outputPath := filepath.Join(outputDir, folder+".cbz")
+
+			workItems = append(workItems, WorkItem{
+				FolderName: folder,
+				SourcePath: absPath,
+				OutputPath: outputPath,
+				DumbMode:   dumbMode,
+			})
+		}
+	}
+
+	return workItems, nil
+}
+
+// collectDirectWorkItems converts specified directories directly
+func collectDirectWorkItems(inputPaths []string, outputDir string, dumbMode bool) ([]WorkItem, error) {
+	var workItems []WorkItem
+	seenPaths := make(map[string]bool) // Prevent duplicates
+
+	for _, inputPath := range inputPaths {
+		// Validate input directory exists
+		inputInfo, err := os.Stat(inputPath)
+		if os.IsNotExist(err) {
+			logger.Warning(fmt.Sprintf("Input path does not exist, skipping: %s", inputPath))
+			continue
+		}
+
+		// Ensure it's a directory
+		if !inputInfo.IsDir() {
+			logger.Warning(fmt.Sprintf("Input path is not a directory, skipping: %s", inputPath))
+			continue
+		}
+
+		// Get absolute path to avoid duplicates
+		absPath, err := filepath.Abs(inputPath)
+		if err != nil {
+			logger.Warning(fmt.Sprintf("Failed to resolve path %s: %v", inputPath, err))
+			continue
+		}
+
+		// Skip if we've already seen this path
+		if seenPaths[absPath] {
+			logger.Warning(fmt.Sprintf("Duplicate path, skipping: %s", inputPath))
+			continue
+		}
+		seenPaths[absPath] = true
+
+		// Generate output filename from directory name
+		folderName := filepath.Base(absPath)
+		outputPath := filepath.Join(outputDir, folderName+".cbz")
+
+		logger.Info(fmt.Sprintf("Input: %s", inputPath))
+
+		workItems = append(workItems, WorkItem{
+			FolderName: folderName,
+			SourcePath: absPath,
+			OutputPath: outputPath,
+			DumbMode:   dumbMode,
+		})
+	}
+
+	return workItems, nil
 }
 
 func getFolders(dir string) ([]string, error) {
@@ -226,11 +355,11 @@ func worker(id int, workChan <-chan WorkItem, wg *sync.WaitGroup, stats *Convers
 func processWorkItem(workerID int, item WorkItem, stats *ConversionStats) {
 	prefix := fmt.Sprintf("[WORKER %d]", workerID)
 
-	logInfo(fmt.Sprintf("%s Processing: %s", prefix, truncateString(item.FolderName, 60)))
+	logger.Info(fmt.Sprintf("%s Processing: %s", prefix, truncateString(item.FolderName, 60)))
 
 	// Check if output already exists
 	if _, err := os.Stat(item.OutputPath); err == nil {
-		logWarning(fmt.Sprintf("%s CBZ already exists, skipping: %s", prefix, filepath.Base(item.OutputPath)))
+		logger.Warning(fmt.Sprintf("%s CBZ already exists, skipping: %s", prefix, filepath.Base(item.OutputPath)))
 		stats.mu.Lock()
 		stats.Skipped++
 		stats.mu.Unlock()
@@ -240,7 +369,7 @@ func processWorkItem(workerID int, item WorkItem, stats *ConversionStats) {
 	// Convert folder to CBZ
 	nonImageCount, err := convertToCBZ(item.SourcePath, item.OutputPath, item.DumbMode)
 	if err != nil {
-		logError(fmt.Sprintf("%s Conversion failed: %v", prefix, err))
+		logger.Error(fmt.Sprintf("%s Conversion failed: %v", prefix, err))
 		stats.mu.Lock()
 		stats.Errors++
 		stats.mu.Unlock()
@@ -253,11 +382,11 @@ func processWorkItem(workerID int, item WorkItem, stats *ConversionStats) {
 	stats.NonImageFiles += nonImageCount
 	stats.mu.Unlock()
 
-	logOK(fmt.Sprintf("%s Created: %s", prefix, filepath.Base(item.OutputPath)))
+	logger.Okay(fmt.Sprintf("%s Created: %s", prefix, filepath.Base(item.OutputPath)))
 
 	// Report non-image files if found
 	if nonImageCount > 0 {
-		logWarning(fmt.Sprintf("%s Found %d non-image files (excluded from CBZ)", prefix, nonImageCount))
+		logger.Warning(fmt.Sprintf("%s Found %d non-image files (excluded from CBZ)", prefix, nonImageCount))
 	}
 }
 
@@ -360,7 +489,7 @@ func getSmartFilteredFiles(dir string) ([]string, int, error) {
 		isUseful, err := isUsefulFile(path)
 		if err != nil {
 			// If we can't determine, include it (fail-safe approach)
-			logWarning(fmt.Sprintf("Could not analyze file %s, including anyway", fileName))
+			logger.Warning(fmt.Sprintf("Could not analyze file %s, including anyway", fileName))
 			includedFiles = append(includedFiles, path)
 		} else if isUseful {
 			includedFiles = append(includedFiles, path)
@@ -523,46 +652,28 @@ func printFinalStats(stats *ConversionStats) {
 	stats.mu.Lock()
 	defer stats.mu.Unlock()
 
-	logInfo("Conversion completed")
-	logInfo(fmt.Sprintf("Total folders:     %d", stats.Total))
-	logOK(fmt.Sprintf("Successful:        %d", stats.Success))
+	logger.Info("Conversion completed")
+	logger.Info(fmt.Sprintf("Total folders:     %d", stats.Total))
+	logger.Okay(fmt.Sprintf("Successful:        %d", stats.Success))
 
 	if stats.Skipped > 0 {
-		logWarning(fmt.Sprintf("Skipped:           %d", stats.Skipped))
+		logger.Warning(fmt.Sprintf("Skipped:           %d", stats.Skipped))
 	}
 
 	if stats.Errors > 0 {
-		logError(fmt.Sprintf("Errors:            %d", stats.Errors))
+		logger.Error(fmt.Sprintf("Errors:            %d", stats.Errors))
 	}
 
 	if stats.NonImageFiles > 0 {
-		logInfo(fmt.Sprintf("Files excluded:    %d (smart filtering)", stats.NonImageFiles))
+		logger.Info(fmt.Sprintf("Files excluded:    %d (smart filtering)", stats.NonImageFiles))
 	}
 
 	// Calculate success rate
 	processed := stats.Success + stats.Errors
 	if processed > 0 {
 		successRate := float64(stats.Success) / float64(processed) * 100
-		logInfo(fmt.Sprintf("Success rate:      %.1f%%", successRate))
+		logger.Info(fmt.Sprintf("Success rate:      %.1f%%", successRate))
 	}
-}
-
-// Logging functions with colored output and professional tags
-
-func logInfo(message string) {
-	fmt.Printf("%s[INFO]%s %s\n", ColorBlue, ColorReset, message)
-}
-
-func logOK(message string) {
-	fmt.Printf("%s[OK]%s %s\n", ColorGreen, ColorReset, message)
-}
-
-func logWarning(message string) {
-	fmt.Printf("%s[WARN]%s %s\n", ColorYellow, ColorReset, message)
-}
-
-func logError(message string) {
-	fmt.Printf("%s[ERROR]%s %s\n", ColorRed, ColorReset, message)
 }
 
 func truncateString(s string, maxLen int) string {
