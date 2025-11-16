@@ -48,11 +48,15 @@ jobs:
           VER=$(sed -n 's/^const VERSION = "\(v[0-9]*\.[0-9]*\.[0-9]*\)".*$/\1/p' main.go)
           echo "ver=$VER" >> $GITHUB_OUTPUT
 
-      - name: Get commit message
-        id: msg
+      - name: Extract commit message
+        id: commit_msg
         run: |
           MSG=$(git log -1 --pretty=%B)
-          echo "msg=$MSG" >> $GITHUB_OUTPUT
+          {
+            echo "msg<<EOF"
+            echo "$MSG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
