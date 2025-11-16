@@ -1,0 +1,66 @@
+name: build-and-release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Make build script executable
+        run: chmod +x ./build.sh
+
+      - name: Build ALL targets
+        run: ./build.sh all
+
+      - name: Upload all built binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-binaries
+          path: bin/*
+
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Extract version from main.go
+        id: version
+        run: |
+          VER=$(grep -Eo 'VERSION\s*=\s*"v[0-9]+\.[0-9]+\.[0-9]+"' main.go | sed 's/.*="//; s/"//')
+          echo "ver=$VER" >> $GITHUB_OUTPUT
+
+      - name: Get commit message
+        id: msg
+        run: |
+          MSG=$(git log -1 --pretty=%B)
+          echo "msg=$MSG" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: built-binaries
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.ver }}
+          name: ${{ steps.version.outputs.ver }}
+          body: ${{ steps.msg.outputs.msg }}
+          files: artifacts/*

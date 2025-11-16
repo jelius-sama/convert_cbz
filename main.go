@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+const VERSION = "v1.1.1"
+
 // ANSI color codes for professional logging
 const (
 	ColorReset  = "\033[0m"
@@ -59,7 +61,7 @@ func main() {
 
 	// Handle version flag
 	if *showVersion {
-		fmt.Println("CBZ Converter v1.1.1")
+		fmt.Println("CBZ Converter " + VERSION)
 		fmt.Println("Converts folders containing images to CBZ comic book archives")
 		return
 	}
