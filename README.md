@@ -34,7 +34,7 @@ The compiled binaries will be placed in the `./bin/` directory.
 
 If you prefer to build manually:
 ```bash
-go build -o convert_cbz main.go
+go build -o convert-cbz main.go
 ```
 
 ## Usage
