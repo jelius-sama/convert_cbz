@@ -59,10 +59,11 @@ jobs:
           echo "ver=$VER" >> $GITHUB_OUTPUT
 
       - name: Skip if version unchanged
-        if: ${{ steps.version.outputs.ver == steps.latest.outputs.latest }}
         run: |
-          echo "Version already released: ${{ steps.version.outputs.ver }}"
-          exit 0
+          if [ "${{ steps.version.outputs.ver }}" = "${{ steps.latest.outputs.latest }}" ]; then
+            echo "Version already released: ${{ steps.version.outputs.ver }}"
+            exit 1
+          fi
 
       - name: Extract commit message
         id: commit_msg
