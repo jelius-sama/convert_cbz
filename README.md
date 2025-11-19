@@ -41,7 +41,7 @@ go build -o convert_cbz main.go
 
 ### Basic Syntax
 ```bash
-convert_cbz -input <input_path> [-input <input_path>...] -output <output_folder> [options]
+convert-cbz -input <input_path> [-input <input_path>...] -output <output_folder> [options]
 ```
 
 ### Options
@@ -71,7 +71,7 @@ Scans input directories and converts each subdirectory into a separate CBZ file.
 
 **Usage:**
 ```bash
-convert_cbz -recursive -input ./mangas -output ./cbz
+convert-cbz -recursive -input ./mangas -output ./cbz
 ```
 
 **Result:** Creates `Manga Title 1.cbz`, `Manga Title 2.cbz`, `Manga Title 3.cbz`
@@ -82,10 +82,10 @@ Converts specified directories directly into CBZ files without recursion. Perfec
 **Usage:**
 ```bash
 # Single folder
-convert_cbz -input "./mangas/Manga Title 1" -output ./cbz
+convert-cbz -input "./mangas/Manga Title 1" -output ./cbz
 
 # Multiple folders
-convert_cbz -input "./mangas/Manga Title 1" -input "./mangas/Manga Title 2" -output ./cbz
+convert-cbz -input "./mangas/Manga Title 1" -input "./mangas/Manga Title 2" -output ./cbz
 ```
 
 **Result:** Creates CBZ files only for the specified directories
@@ -95,10 +95,10 @@ Both modes support multiple input paths:
 
 ```bash
 # Recursive mode with multiple sources
-convert_cbz -recursive -input ./mangas -input ./fav-mangas -output ./cbz
+convert-cbz -recursive -input ./mangas -input ./fav-mangas -output ./cbz
 
 # Direct mode with multiple sources
-convert_cbz -input ./folder1 -input ./folder2 -input ./folder3 -output ./cbz
+convert-cbz -input ./folder1 -input ./folder2 -input ./folder3 -output ./cbz
 ```
 
 ## Examples
@@ -106,37 +106,37 @@ convert_cbz -input ./folder1 -input ./folder2 -input ./folder3 -output ./cbz
 ### Recursive Processing (Batch Conversion)
 ```bash
 # Process all subdirectories in manga folder
-convert_cbz -recursive -input ./manga -output ./cbz
+convert-cbz -recursive -input ./manga -output ./cbz
 
 # Process multiple source directories
-convert_cbz -recursive -input ./manga -input ./comics -output ./cbz
+convert-cbz -recursive -input ./manga -input ./comics -output ./cbz
 
 # With custom thread count
-convert_cbz -recursive -threads 8 -input ./manga -output ./cbz
+convert-cbz -recursive -threads 8 -input ./manga -output ./cbz
 ```
 
 ### Direct Processing (Specific Folders)
 ```bash
 # Convert a single specific folder
-convert_cbz -input "./manga/One Piece Chapter 1" -output ./cbz
+convert-cbz -input "./manga/One Piece Chapter 1" -output ./cbz
 
 # Convert multiple specific folders
-convert_cbz -input "./manga/Chapter 1" -input "./manga/Chapter 2" -output ./cbz
+convert-cbz -input "./manga/Chapter 1" -input "./manga/Chapter 2" -output ./cbz
 
 # Using dumb mode for complete archiving
-convert_cbz -dumb -input "./raw/chapter 1" -output ./archives
+convert-cbz -dumb -input "./raw/chapter 1" -output ./archives
 ```
 
 ### Advanced Usage
 ```bash
 # High-performance recursive processing
-convert_cbz -recursive -threads 16 -input ./large_collection -output ./cbz
+convert-cbz -recursive -threads 16 -input ./large_collection -output ./cbz
 
 # Archive everything without filtering
-convert_cbz -recursive -dumb -input ./raw_scans -output ./archives
+convert-cbz -recursive -dumb -input ./raw_scans -output ./archives
 
 # Process specific chapters with smart filtering
-convert_cbz -input "./Ch1" -input "./Ch2" -input "./Ch3" -output ./out
+convert-cbz -input "./Ch1" -input "./Ch2" -input "./Ch3" -output ./out
 ```
 
 ## Content Filtering Modes
@@ -214,7 +214,7 @@ input/
     └── Chapter 2/
         └── pages...
 
-Command: convert_cbz -input "./mangas/Chapter 1" -output ./cbz
+Command: convert-cbz -input "./mangas/Chapter 1" -output ./cbz
 
 output/
 └── Chapter 1.cbz
@@ -319,7 +319,7 @@ This project is released under the MIT License.
 **Q: How to process specific chapters?**
 - Use direct mode without `-recursive` flag
 - Specify each folder with separate `-input` flags
-- Example: `convert_cbz -input "./Ch1" -input "./Ch2" -output ./cbz`
+- Example: `convert-cbz -input "./Ch1" -input "./Ch2" -output ./cbz`
 
 **Q: CBZ files not opening in comic readers**
 - Ensure input folders contain valid image files

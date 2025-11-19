@@ -42,11 +42,24 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Get latest release tag
+        id: latest
+        run: |
+          LATEST=$(gh release view --json tagName -q '.tagName' || echo "none")
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+
       - name: Extract version from main.go
         id: version
         run: |
           VER=$(sed -n 's/^const VERSION = "\(v[0-9]*\.[0-9]*\.[0-9]*\)".*$/\1/p' main.go)
           echo "ver=$VER" >> $GITHUB_OUTPUT
+
+      - name: Skip if version unchanged
+        run: |
+          if [ "${{ steps.version.outputs.ver }}" = "${{ steps.latest.outputs.latest }}" ]; then
+            echo "Version already released: ${{ steps.version.outputs.ver }}"
+            exit 0
+          fi
 
       - name: Extract commit message
         id: commit_msg
@@ -69,5 +82,5 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.ver }}
           name: ${{ steps.version.outputs.ver }}
-          body: ${{ steps.msg.outputs.msg }}
+          body: ${{ steps.commit_msg.outputs.msg }}
           files: artifacts/*
