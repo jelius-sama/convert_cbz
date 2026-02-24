@@ -51,6 +51,10 @@ build_all() {
     build "darwin_amd64"  $(build_cmd darwin amd64)
     build "darwin_arm64"  $(build_cmd darwin arm64)
 
+    # Windows
+    build "windows_amd64" $(build_cmd windows amd64)
+    build "windows_386"   $(build_cmd windows 386)
+
     # FreeBSD
     build "freebsd_amd64" $(build_cmd freebsd amd64)
     build "freebsd_386"   $(build_cmd freebsd 386)
