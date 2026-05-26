@@ -43,7 +43,7 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
- build:
+  build:
     needs: check
     if: needs.check.outputs.should_skip != 'true'
     runs-on: ubuntu-latest
