@@ -30,7 +30,7 @@ build() {
 }
 
 build_cmd() {
-  printf 'CGO_ENABLED=0 GOOS=%s GOARCH=%s go build -trimpath -buildvcs=false -o .%s/%s-%s-%s ./main.go' \
+  printf 'CGO_ENABLED=0 GOOS=%s GOARCH=%s go build -trimpath -buildvcs=false -o .%s/%s-%s-%s ./cmd/' \
     "$1" "$2" "$BIN_DIR" "$TITLE" "$1" "$2"
 }
 
@@ -94,7 +94,7 @@ usage() {
 }
 
 if [ $# -eq 0 ]; then
-    build "host_default" CGO_ENABLED=0 go build -trimpath -buildvcs=false -o .${BIN_DIR}/${TITLE} ./main.go            
+    build "host_default" CGO_ENABLED=0 go build -trimpath -buildvcs=false -o .${BIN_DIR}/${TITLE} ./cmd/            
 elif [ $# -eq 1 ] && [ "$1" = "all" ]; then
     build_all
 else
