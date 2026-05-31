@@ -38,10 +38,7 @@ func (v *VisualLine) Muted(s string) *VisualLine     { return v.Add(s, ansiMuted
 func (v *VisualLine) Color(s, a string) *VisualLine  { return v.Add(s, a) }
 
 func box(content *VisualLine, W int) string {
-    pad := W - content.visible
-    if pad < 0 {
-        pad = 0
-    }
+    pad := max(W-content.visible, 0)
     return "│ " + content.String() + ansiReset + strings.Repeat(" ", pad) + " │"
 }
 
@@ -54,12 +51,12 @@ func PrintFinalStats(stats *types.ConversionStats, buf *types.SafeWriter, elapse
     buf.Mutex.Unlock()
 
     var failures []struct{ name, reason string }
-    for _, line := range strings.Split(logContent, "\n") {
+    for line := range strings.SplitSeq(logContent, "\n") {
         if !strings.HasPrefix(line, "[ERROR]") {
             continue
         }
-        if idx := strings.Index(line, "Conversion failed: "); idx != -1 {
-            reason := line[idx+len("Conversion failed: "):]
+        if _, after, ok := strings.Cut(line, "Conversion failed: "); ok {
+            reason := after
             name := ""
             parts := strings.SplitN(line, "] ", 3)
             if len(parts) == 3 {
@@ -169,10 +166,7 @@ func PrintFinalStats(stats *types.ConversionStats, buf *types.SafeWriter, elapse
 
     // Footer
     logStr := "git@git.jelius.dev:jelius-sama/convert_cbz.git"
-    pad := W - len([]rune(logStr))
-    if pad < 0 {
-        pad = 0
-    }
+    pad := max(W-len([]rune(logStr)), 0)
 
     fmt.Println(mid)
     ft := newLine()

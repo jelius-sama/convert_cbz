@@ -82,10 +82,7 @@ func (s *Spinner) render(frame int, elapsed time.Duration, final bool) {
 
     // Progress bar (30 chars wide)
     const barWidth = 30
-    filled := int(float64(barWidth) * float64(done) / float64(s.total))
-    if filled > barWidth {
-        filled = barWidth
-    }
+    filled := min(int(float64(barWidth)*float64(done)/float64(s.total)), barWidth)
     bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
 
     // Status counts
