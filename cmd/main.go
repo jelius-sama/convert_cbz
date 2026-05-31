@@ -14,7 +14,7 @@ import (
     "github.com/jelius-sama/logger"
 )
 
-const VERSION = "v2.1.1"
+const VERSION = "v2.2.0"
 
 func main() {
     start := time.Now()
@@ -27,14 +27,15 @@ func main() {
         showHelp    bool
         showVersion bool
         inputPaths  types.StringSliceFlag
+        compression types.CompressionMode = types.ToCompressionMode(types.CMNone.String())
     )
 
     flag.StringVar(&outputDir, "output", "", "Output directory")
     flag.StringVar(&outputDir, "o", "", "Output directory")
 
-    flag.IntVar(&threads, "threads", 4, "Number of concurrent threads")
-    flag.IntVar(&threads, "t", 4, "Number of concurrent threads")
-    flag.IntVar(&threads, "j", 4, "Number of concurrent threads")
+    flag.IntVar(&threads, "threads", runtime.NumCPU(), "Number of concurrent threads")
+    flag.IntVar(&threads, "t", runtime.NumCPU(), "Number of concurrent threads")
+    flag.IntVar(&threads, "j", runtime.NumCPU(), "Number of concurrent threads")
 
     flag.BoolVar(&dumbMode, "dumb", false, "Archive all files without filtering")
     flag.BoolVar(&dumbMode, "d", false, "Archive all files without filtering")
@@ -50,6 +51,9 @@ func main() {
 
     flag.Var(&inputPaths, "input", "Input directory/directories (can be specified multiple times)")
     flag.Var(&inputPaths, "i", "Input directory/directories (can be specified multiple times)")
+
+    flag.Var(&compression, "compression", "Compression mode to use")
+    flag.Var(&compression, "c", "Compression mode to use")
 
     flag.Usage = showUsage
     flag.Parse()
@@ -67,16 +71,30 @@ func main() {
         return
     }
 
-    // Validate thread count - ensure reasonable bounds
+    // Validate thread count
     if threads < 1 {
-        threads = 1
-    } else if threads > runtime.NumCPU()*2 {
+        threads = runtime.NumCPU()
+    }
+
+    // Too much CPU usage might end up triggering aggresive context switching,
+    // which can hurt performance instead of increasing it
+    if compression == types.CMDefault && threads > runtime.NumCPU()*2 {
         // Limit to 2x CPU cores to prevent resource exhaustion
-        // Too much CPU usage might end up triggering aggresive context switching,
-        // which can hurt performance instead of increasing it
         threads = runtime.NumCPU() * 2
         logger.Info(fmt.Sprintf("Thread count limited to %d (2x CPU cores)", threads))
     }
+    if compression == types.CMFast && threads > runtime.NumCPU()*4 {
+        // Limit to 4x CPU cores to prevent resource exhaustion
+        threads = runtime.NumCPU() * 4
+        logger.Info(fmt.Sprintf("Thread count limited to %d (4x CPU cores)", threads))
+    }
+    if compression == types.CMSlow && threads > runtime.NumCPU() {
+        // Limit to 1x CPU cores to prevent resource exhaustion
+        threads = runtime.NumCPU()
+        logger.Info(fmt.Sprintf("Thread count limited to %d (1x CPU cores)", threads))
+    }
+
+    os.Setenv(types.CKey.String(), compression.String())
 
     // Create output directory if it doesn't exist
     if err := os.MkdirAll(outputDir, 0755); err != nil {

@@ -2,10 +2,26 @@ package processor
 
 import (
     "archive/zip"
+    "compress/flate"
+    "convert_cbz/internal/types"
     "io"
     "os"
     "path/filepath"
+    "sync"
 )
+
+var (
+    compression     types.CompressionMode
+    compressionOnce sync.Once
+)
+
+// Once program starts there's no way to change compression mode so just cache it
+func getCompression() types.CompressionMode {
+    compressionOnce.Do(func() {
+        compression = types.ToCompressionMode(os.Getenv(types.CKey.String()))
+    })
+    return compression
+}
 
 func addFileToZip(zipWriter *zip.Writer, filePath, baseDir string) error {
     // Calculate relative path for the ZIP entry
@@ -39,7 +55,30 @@ func addFileToZip(zipWriter *zip.Writer, filePath, baseDir string) error {
 
     // Set compression method and file path
     header.Name = relPath
-    header.Method = zip.Deflate // Use compression to reduce file size
+    compression := getCompression()
+
+    switch compression {
+    case types.CMDefault:
+        header.Method = zip.Deflate
+        zipWriter.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
+            return flate.NewWriter(out, flate.DefaultCompression)
+        })
+
+    case types.CMFast:
+        header.Method = zip.Deflate
+        zipWriter.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
+            return flate.NewWriter(out, flate.BestSpeed)
+        })
+
+    case types.CMSlow:
+        header.Method = zip.Deflate
+        zipWriter.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
+            return flate.NewWriter(out, flate.BestCompression)
+        })
+
+    default:
+        header.Method = zip.Store
+    }
 
     // Create ZIP entry
     writer, err := zipWriter.CreateHeader(header)
