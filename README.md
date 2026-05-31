@@ -256,9 +256,11 @@ The tool provides professional logging with color-coded output:
 └──────────────────────────────────────────────────────────────┘
 ❯ uname -a
 Linux shogun 6.19.14-400.asahi.fc43.aarch64+16k #1 SMP PREEMPT_DYNAMIC Thu May  7 22:16:47 UTC 2026 aarch64 GNU/Linux
+❯ du -sh ./test
+20G     ./test
 ```
 > [!NOTE]
-> 847 real torrent downloads done converting to CBZ in 1 minute 35 seconds BTW. BLAZINGLY FAST!
+> 847 real torrent downloads (20GB in size) done converting to CBZ in 1 minute 35 seconds BTW. BLAZINGLY FAST!
 
 ```sh
 ❯ ./bin/convert-cbz -i ~/Downloads/Torrent\ Downloads -o ./test -r -j $(nproc)
