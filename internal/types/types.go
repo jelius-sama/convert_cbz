@@ -68,7 +68,7 @@ func ToCompressionMode(cm string) CompressionMode {
     switch cm {
     case CMDefault.String():
         return CMDefault
-    case CMDefault.String():
+    case CMNone.String():
         return CMNone
     case CMFast.String():
         return CMFast
