@@ -230,24 +230,67 @@ The tool provides professional logging with color-coded output:
 - **[ERROR]** - Error conditions (red)
 
 ### Sample Output
-```
-[INFO] Starting CBZ conversion with 4 threads
-[INFO] Output: ./cbz
+```sh
+❯ ./bin/convert-cbz -i ~/Downloads/Torrent\ Downloads -o ./test -r -j $(nproc)
+[INFO] Starting CBZ conversion with 8 threads
+[INFO] Output: ./test
 [INFO] Mode: SMART - filtering files intelligently
 [INFO] Mode: RECURSIVE - processing subdirectories
-[INFO] Input: ./manga (199 subdirectories)
-[INFO] Found 199 folders to process
-[WORKER 1] Processing: [Author] Title Chapter 1
-[OK] [WORKER 1] Created: Title Chapter 1.cbz
-[WARN] [WORKER 2] Found 2 non-image files (excluded from CBZ)
-...
-[INFO] Conversion completed
-[INFO] Total folders:     199
-[OK] Successful:        197
-[WARN] Skipped:           2
-[INFO] Files excluded:    15 (smart filtering)
-[INFO] Success rate:      100.0%
+[INFO] Input: /home/kazuma/Downloads/Torrent Downloads (847 subdirectories)
+[INFO] Found 847 folders to process
+
+✓ converting 847/847 folders
+  ██████████████████████████████ 100%  done in 1m35s
+  ✓ 847 ok
+
+  log written → /tmp/convert-cbz/2026-05-31-2004.log
+┌──────────────────────────────────────────────────────────────┐
+│ CONVERSION COMPLETE  done in 1m35s                           │
+├──────────────────────────────────────────────────────────────┤
+│ TOTAL        OK           SKIPPED      ERRORS                │
+│ 847          847          0            0                     │
+├──────────────────────────────────────────────────────────────┤
+│ success  ████████████████████ 100%                           │
+├──────────────────────────────────────────────────────────────┤
+│ git@git.jelius.dev:jelius-sama/convert_cbz.git               │
+└──────────────────────────────────────────────────────────────┘
+❯ uname -a
+Linux shogun 6.19.14-400.asahi.fc43.aarch64+16k #1 SMP PREEMPT_DYNAMIC Thu May  7 22:16:47 UTC 2026 aarch64 GNU/Linux
 ```
+> [!NOTE]
+> 847 real torrent downloads done converting to CBZ in 1 minute 35 seconds BTW. BLAZINGLY FAST!
+
+```sh
+❯ ./bin/convert-cbz -i ~/Downloads/Torrent\ Downloads -o ./test -r -j $(nproc)
+[INFO] Starting CBZ conversion with 8 threads
+[INFO] Output: ./test
+[INFO] Mode: SMART - filtering files intelligently
+[INFO] Mode: RECURSIVE - processing subdirectories
+[INFO] Input: /home/kazuma/Downloads/Torrent Downloads (847 subdirectories)
+[INFO] Found 847 folders to process
+
+✓ converting 847/847 folders
+  ██████████████████████████████ 100%  done in <1s
+  ✓ 0 ok
+
+  log written → /tmp/convert-cbz/2026-05-31-2004.log
+┌──────────────────────────────────────────────────────────────┐
+│ CONVERSION COMPLETE  done in <1s                             │
+├──────────────────────────────────────────────────────────────┤
+│ TOTAL        OK           SKIPPED      ERRORS                │
+│ 847          0            847          0                     │
+├──────────────────────────────────────────────────────────────┤
+│ success  ████████████████████ 100%                           │
+│ skipped  ████████████████████ 100%                           │
+├──────────────────────────────────────────────────────────────┤
+│ git@git.jelius.dev:jelius-sama/convert_cbz.git               │
+└──────────────────────────────────────────────────────────────┘
+```
+> [!NOTE]
+> 847 directories scanned, all already converted, skipped in under a second. BLAZINGLY FAST!
+
+> [!NOTE]
+> I use Asahi BTW!
 
 ## Performance Considerations
 

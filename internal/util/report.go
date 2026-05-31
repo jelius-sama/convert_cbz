@@ -67,11 +67,12 @@ func PrintFinalStats(stats *types.ConversionStats, buf *types.SafeWriter, elapse
     }
 
     processed := stats.Success + stats.Errors
+    successRate := 0.0
     if processed > 0 {
-        stats.Success = stats.Success / processed * 100
+        successRate = float64(stats.Success) / float64(processed) * 100
     } else if stats.Skipped == stats.Total {
         // If all conversion were skipped, we count it as success
-        stats.Success = stats.Total
+        successRate = 100.0
     }
 
     const W = 60
@@ -108,6 +109,16 @@ func PrintFinalStats(stats *types.ConversionStats, buf *types.SafeWriter, elapse
         return l                                   // total: 9+20+5 = 34
     }
 
+    makeBarPct := func(label string, color string, pct float64) *VisualLine {
+        f := min(int(math.Round(float64(20)*pct/100)), 20)
+        l := newLine()
+        l.Plain(fmt.Sprintf("%-8s ", label))
+        l.Color(strings.Repeat("█", f), color)
+        l.Muted(strings.Repeat("░", 20-f))
+        l.Color(fmt.Sprintf(" %3.0f%%", pct), color)
+        return l
+    }
+
     elapsedStr := FmtDuration(elapsed)
 
     // Header
@@ -134,8 +145,7 @@ func PrintFinalStats(stats *types.ConversionStats, buf *types.SafeWriter, elapse
 
     // Bars
     // Always show success rate bar
-
-    fmt.Println(box(makeBar("success", ansiGreen, stats.Success), W))
+    fmt.Println(box(makeBarPct("success", ansiGreen, successRate), W))
 
     if stats.Skipped > 0 {
         fmt.Println(box(makeBar("skipped", ansiYellow, stats.Skipped), W))
